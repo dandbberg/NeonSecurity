@@ -1,0 +1,66 @@
+name: Deploy Helm Chart to EKS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  AWS_REGION: eu-west-1
+  AWS_ACCOUNT_ID: 919649607464
+  EKS_CLUSTER_NAME: dberg-perf-eks
+  KUBE_NAMESPACE: default
+  TF_WORKING_DIR: ./Deployment
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # Required for OIDC authentication
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/dberg-perf-github-actions-role
+
+      - uses: azure/setup-kubectl@v4
+        with: { version: 'latest' }
+
+      - uses: azure/setup-helm@v4
+        with: { version: 'latest' }
+
+      - name: Update kubeconfig for EKS cluster
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Ensure external-secrets operator installed
+        run: |
+          helm repo add external-secrets https://charts.external-secrets.io 2>/dev/null || true
+          helm repo update external-secrets
+          helm upgrade --install external-secrets external-secrets/external-secrets \
+            --namespace external-secrets --create-namespace \
+            --set installCRDs=true
+
+      - name: Wait for External Secrets CRDs
+        run: |
+          kubectl wait --for=condition=Established --timeout=120s crd/clustersecretstores.external-secrets.io
+          kubectl wait --for=condition=Established --timeout=120s crd/externalsecrets.external-secrets.io
+
+      - name: Ensure namespace exists
+        run: kubectl create ns "$KUBE_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Render Helm template for NeonSecurityTask
+        run: |
+          helm dependency update ./Deployment/NeonSecurityTask-chart || true
+          helm template neonsecuritytask ./Deployment/NeonSecurityTask-chart \
+            --values ./Deployment/app-values/NeonSecurity.yaml \
+            > ./Deployment/deployment-neonsecuritytask.yaml
+
+      - name: Apply NeonSecurityTask Helm chart to Kubernetes cluster
+        run: |
+          kubectl apply --validate=false -f "./Deployment/deployment-neonsecuritytask.yaml" -n "$KUBE_NAMESPACE"
+          

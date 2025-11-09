@@ -1,0 +1,10 @@
+controller:
+  replicaCount: 1
+  service:
+    type: LoadBalancer
+  admissionWebhooks:
+    enabled: false
+  extraArgs:
+    enable-ssl-passthrough: ""
+  ingressClassResource:
+    default: true

@@ -1,0 +1,93 @@
+replicaCount: 1
+
+image:
+  repository: 919649607464.dkr.ecr.eu-west-1.amazonaws.com/neonsecurity-ecr
+  tag: NeonSecurityTask-latest
+  pullPolicy: Always
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::919649607464:role/dberg-perf-NeonSecurityTask-irsa
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+database:
+  preferSecret: true
+  secretName: neonsecuritytask-db-credentials
+  secretKeys:
+    host: ""
+    port: ""
+    name: ""
+    user: username
+    password: password
+    sslmode: ""
+  static:
+    host: dberg-perf-app-db.cnuosesa6h72.eu-west-1.rds.amazonaws.com
+    port: 5432
+    name: neonsecurity
+    user: ""
+    sslmode: require
+
+externalSecret:
+  enabled: true
+  createSecretStore: true
+  apiVersion: external-secrets.io/v1
+  secretStoreApiVersion: external-secrets.io/v1
+  name: neonsecuritytask-db-credentials
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  region: eu-west-1
+  remoteSecretArn: arn:aws:secretsmanager:eu-west-1:919649607464:secret:rds!db-0cc5b423-54e9-45dc-afbd-00534b2432fe-wXtILb
+  data:
+    - secretKey: username
+      remoteRef:
+        property: username
+    - secretKey: password
+      remoteRef:
+        property: password
+  metadataPolicy: Owner
+
+env:
+  - name: NEONSECURITYTASK_MESSAGE
+    value: "Your last access logged"
+
+service:
+  enabled: true
+  type: ClusterIP
+  port: 8443
+  targetPort: 8443
+  annotations: {}
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: ""
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+

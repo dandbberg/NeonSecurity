@@ -1,0 +1,7 @@
+apiVersion: v2
+name: NeonSecurityTask-chart
+description: Deploys the NeonSecurityTask Postgres writer application with optional ExternalSecret and IRSA support.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+

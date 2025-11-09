@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "NeonSecurityTask-chart.fullname" . }}
+  labels:
+    {{- include "NeonSecurityTask-chart.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "NeonSecurityTask-chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "NeonSecurityTask-chart.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "NeonSecurityTask-chart.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ include "NeonSecurityTask-chart.fullname" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- $db := .Values.database }}
+            {{- $preferSecret := and $db.preferSecret $db.secretName }}
+            - name: POSTGRES_HOST
+              {{- if and $preferSecret $db.secretKeys.host }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $db.secretName }}
+                  key: {{ $db.secretKeys.host }}
+              {{- else if $db.static.host }}
+              value: {{ $db.static.host | quote }}
+              {{- else }}
+              value: ""
+              {{- end }}
+            - name: POSTGRES_PORT
+              {{- if and $preferSecret $db.secretKeys.port }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $db.secretName }}
+                  key: {{ $db.secretKeys.port }}
+              {{- else }}
+              value: {{ default 5432 $db.static.port | quote }}
+              {{- end }}
+            - name: POSTGRES_DB
+              {{- if and $preferSecret $db.secretKeys.name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $db.secretName }}
+                  key: {{ $db.secretKeys.name }}
+              {{- else if $db.static.name }}
+              value: {{ $db.static.name | quote }}
+              {{- else }}
+              value: ""
+              {{- end }}
+            - name: POSTGRES_USER
+              {{- if and $preferSecret $db.secretKeys.user }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $db.secretName }}
+                  key: {{ $db.secretKeys.user }}
+              {{- else if $db.static.user }}
+              value: {{ $db.static.user | quote }}
+              {{- else }}
+              value: ""
+              {{- end }}
+            - name: POSTGRES_PASSWORD
+              {{- if and $preferSecret $db.secretKeys.password }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $db.secretName }}
+                  key: {{ $db.secretKeys.password }}
+              {{- else }}
+              value: ""
+              {{- end }}
+            - name: POSTGRES_SSLMODE
+              {{- if and $preferSecret $db.secretKeys.sslmode }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $db.secretName }}
+                  key: {{ $db.secretKeys.sslmode }}
+              {{- else }}
+              value: {{ default "require" $db.static.sslmode | quote }}
+              {{- end }}
+            {{- range .Values.env }}
+            - name: {{ .name }}
+              {{- if .valueFrom }}
+              valueFrom:
+                {{- toYaml .valueFrom | nindent 14 }}
+              {{- else }}
+              value: {{ default "" .value | quote }}
+              {{- end }}
+            {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
